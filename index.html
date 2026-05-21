@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CaféDx — Diagnóstico Bayesiano de Cultivos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,300&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<!-- Agregamos un importmap para que el navegador resuelva el módulo si se abre directamente sin bundler -->
+<script type="importmap">
+  {
+    "imports": {
+      "@google/genai": "https://esm.sh/@google/genai"
+    }
+  }
+</script>
+</head>
+<body>
+
+<header>
+  <div style="display:flex;align-items:flex-end;gap:1.5rem;position:relative;z-index:1">
+    <div class="header-icon">☕</div>
+    <div class="header-text">
+      <h1>CaféDx</h1>
+      <p>Sistema de diagnóstico bayesiano para cultivos de café — Investigación de Operaciones</p>
+    </div>
+  </div>
+  <a href="configuracion.html" style="position:relative;z-index:1;padding:0.55rem 1.2rem;border:1px solid rgba(183,228,199,0.3);border-radius:8px;color:var(--verde-menta);background:transparent;font-family:'Instrument Sans',sans-serif;font-size:0.85rem;cursor:pointer;text-decoration:none;display:flex;align-items:center;gap:0.4rem;transition:background 0.2s;" onmouseover="this.style.background='rgba(183,228,199,0.1)'" onmouseout="this.style.background='transparent'">⚙ Configurar modelo</a>
+</header>
+
+<div class="contenedor">
+
+  <!-- FORMULARIO -->
+  <p class="seccion-titulo">Evidencias observadas</p>
+  <div class="formulario">
+    <div class="grid-evidencias">
+
+      <div class="campo">
+        <label><span class="num">1</span>Color de hojas</label>
+        <select id="e1">
+          <option value="">— Seleccionar —</option>
+          <option value="normal">Normal / verde sano</option>
+          <option value="amarillo">Amarillo generalizado</option>
+          <option value="naranja">Manchas naranjas o polvosas</option>
+          <option value="oscuro">Manchas oscuras / necróticas</option>
+        </select>
+      </div>
+
+      <div class="campo">
+        <label><span class="num">2</span>Estado de los frutos</label>
+        <select id="e2">
+          <option value="">— Seleccionar —</option>
+          <option value="normal">Normal / bien formados</option>
+          <option value="perforado">Con perforaciones o hueco</option>
+          <option value="momificado">Momificados / secos</option>
+          <option value="decolorado">Decolorados / manchados</option>
+        </select>
+      </div>
+
+      <div class="campo">
+        <label><span class="num">3</span>Patrón de afectación</label>
+        <select id="e3">
+          <option value="">— Seleccionar —</option>
+          <option value="aisladas">Plantas aisladas</option>
+          <option value="filas">Por filas o surcos</option>
+          <option value="toda">Toda el área del lote</option>
+        </select>
+      </div>
+
+      <div class="campo">
+        <label><span class="num">4</span>Humedad reciente</label>
+        <select id="e4">
+          <option value="">— Seleccionar —</option>
+          <option value="baja">Baja (tiempo seco)</option>
+          <option value="media">Media (normal)</option>
+          <option value="alta">Alta (lluvias frecuentes)</option>
+        </select>
+      </div>
+
+      <div class="campo full">
+        <label><span class="num">5</span>Parte principal afectada</label>
+        <select id="e5">
+          <option value="">— Seleccionar —</option>
+          <option value="hojas">Solo hojas</option>
+          <option value="frutos">Solo frutos</option>
+          <option value="tallos">Hojas y tallos</option>
+          <option value="general">Planta en general</option>
+        </select>
+      </div>
+
+      <!-- PRIORS -->
+      <div class="priors-box">
+        <div class="priors-titulo">Probabilidades previas P(Hᵢ) — ajustables según historial del lote</div>
+        <div class="priors-grid">
+          <div class="prior-item">
+            <label>P(Roya)</label>
+            <input type="number" id="p1" value="0.45" min="0.01" max="0.97" step="0.01">
+          </div>
+          <div class="prior-item">
+            <label>P(Antracnosis)</label>
+            <input type="number" id="p2" value="0.25" min="0.01" max="0.97" step="0.01">
+          </div>
+          <div class="prior-item">
+            <label>P(Broca)</label>
+            <input type="number" id="p3" value="0.20" min="0.01" max="0.97" step="0.01">
+          </div>
+          <div class="prior-item">
+            <label>P(Def. nutricional)</label>
+            <input type="number" id="p4" value="0.10" min="0.01" max="0.97" step="0.01">
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div id="alerta-error" class="alerta-error">⚠ Por favor selecciona una opción en todas las evidencias antes de diagnosticar.</div>
+    <button class="btn-diagnosticar" onclick="diagnosticar()">☕ Diagnosticar cultivo</button>
+  </div>
+
+  <!-- RESULTADOS -->
+  <div id="resultados">
+
+    <p class="seccion-titulo">Resultados del modelo bayesiano</p>
+    <div class="resultado-grid">
+
+      <!-- PROBABILIDADES POSTERIORES -->
+      <div class="card">
+        <div class="card-titulo">Probabilidades posteriores P(Hᵢ | E)</div>
+        <div id="barras-enfermedades"></div>
+      </div>
+
+      <!-- DECISIÓN ÓPTIMA -->
+      <div class="decision-card">
+        <div class="decision-tag">Decisión óptima D*</div>
+        <div class="decision-nombre" id="decision-nombre">—</div>
+        <div class="decision-diagnostico" id="decision-diagnostico">—</div>
+        <ul class="costos-lista" id="costos-lista"></ul>
+      </div>
+
+    </div>
+
+    <!-- TABLA PÉRDIDA ESPERADA -->
+    <div class="perdida-card">
+      <div class="perdida-titulo">Pérdida esperada por decisión — L(Dᵢ, Hⱼ) · P(Hⱼ|E)</div>
+      <table class="perdida-tabla">
+        <thead>
+          <tr>
+            <th>Decisión</th>
+            <th>Pérdida esperada (COP)</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-perdidas"></tbody>
+      </table>
+    </div>
+
+    <!-- AGENTE IA -->
+    <p class="seccion-titulo">Agente de inteligencia artificial</p>
+    <div class="ia-panel">
+      <div class="ia-header">
+        <div class="ia-dot"></div>
+        <div>
+          <h3>Asistente CaféDx</h3>
+          <p>Interpreta resultados y responde preguntas sobre el diagnóstico</p>
+        </div>
+      </div>
+      <div class="ia-chat" id="ia-chat"></div>
+      <div class="preguntas-rapidas" id="preguntas-rapidas">
+        <div class="pregunta-chip" onclick="preguntaRapida('¿Por qué es la decisión óptima esta y no otra?')">¿Por qué esta decisión?</div>
+        <div class="pregunta-chip" onclick="preguntaRapida('¿Qué síntomas adicionales confirmarían el diagnóstico?')">Escenario</div>
+        <div class="pregunta-chip" onclick="preguntaRapida('¿Qué tan confiable es el diagnóstico?')">Confiabilidad</div>
+        <div class="pregunta-chip" onclick="preguntaRapida('¿Qué mejoras podrían hacerse para reducir la propagación?')">Mejoras</div>
+        <div class="pregunta-chip" onclick="preguntaRapida('¿Qué pasaría si no se trata a tiempo?')">Consecuencias sin tratar</div>
+      </div>
+      <div class="ia-input-area">
+        <textarea class="ia-input" id="ia-input" rows="1" placeholder="Haz una pregunta sobre el diagnóstico..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();enviarMensaje();}"></textarea>
+        <button class="btn-enviar" id="btn-enviar" onclick="enviarMensaje()">Enviar</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ============================================================
+//  MODELO BAYESIANO — DATOS (lee configuración guardada o usa defaults)
+// ============================================================
+
+const ENFERMEDADES = ['Roya del café','Antracnosis','Broca del café','Def. nutricional'];
+const COLORES_BARRA = ['#2d6a4f','#52b788','#7b4f2e','#c9956c'];
+
+const CLAVES_E1 = ['normal','amarillo','naranja','oscuro'];
+const CLAVES_E2 = ['normal','perforado','momificado','decolorado'];
+const CLAVES_E3 = ['aisladas','filas','toda'];
+const CLAVES_E4 = ['baja','media','alta'];
+const CLAVES_E5 = ['hojas','frutos','tallos','general'];
+
+const DEFAULTS_VEROSIM_RAW = {
+  e1: [[0.05,0.10,0.50,0.10],[0.20,0.15,0.30,0.70],[0.65,0.10,0.10,0.10],[0.10,0.65,0.10,0.10]],
+  e2: [[0.30,0.10,0.05,0.60],[0.05,0.05,0.85,0.05],[0.10,0.70,0.05,0.10],[0.55,0.15,0.05,0.25]],
+  e3: [[0.10,0.30,0.20,0.50],[0.30,0.40,0.50,0.30],[0.60,0.30,0.30,0.20]],
+  e4: [[0.10,0.15,0.35,0.40],[0.25,0.35,0.40,0.40],[0.65,0.50,0.25,0.20]],
+  e5: [[0.60,0.10,0.05,0.20],[0.10,0.55,0.80,0.10],[0.20,0.15,0.05,0.10],[0.10,0.20,0.10,0.60]]
+};
+
+function cargarLS(clave, fallback) {
+  try { const r = localStorage.getItem('cafedx_'+clave); return r ? JSON.parse(r) : fallback; }
+  catch { return fallback; }
+}
+
+// Verosimilitudes como objeto con claves de texto (para usarlas igual que antes)
+function construirVerosim(raw) {
+  const claves = {e1:CLAVES_E1, e2:CLAVES_E2, e3:CLAVES_E3, e4:CLAVES_E4, e5:CLAVES_E5};
+  const obj = {};
+  ['e1','e2','e3','e4','e5'].forEach(ek=>{
+    obj[ek] = {};
+    claves[ek].forEach((k,i)=>{ obj[ek][k] = raw[ek][i]; });
+  });
+  return obj;
+}
+
+const _verosimRaw = cargarLS('verosim', DEFAULTS_VEROSIM_RAW);
+const VEROSIM = construirVerosim(_verosimRaw);
+
+const DECISIONES = [
+  'Aplicar fungicida (roya)',
+  'Aplicar fungicida (antracnosis)',
+  'Control de broca',
+  'Plan de fertilización',
+  'Solo monitorear'
+];
+
+const COSTOS_DECISION = cargarLS('costos', [180000,150000,200000,220000,20000]);
+
+const PERDIDA = cargarLS('perdida', [
+  [180000, 780000, 880000, 680000],
+  [750000, 150000, 850000, 650000],
+  [820000, 770000, 200000, 720000],
+  [720000, 670000, 770000, 220000],
+  [900000, 800000, 850000, 400000]
+]);
+
+// Priors guardados: se muestran en el formulario al cargar
+window.addEventListener('DOMContentLoaded', ()=>{
+  const priors = cargarLS('priors', [0.45,0.25,0.20,0.10]);
+  ['p1','p2','p3','p4'].forEach((id,i)=>{
+    const el = document.getElementById(id);
+    if(el) el.value = priors[i];
+  });
+});
+
+// ============================================================
+//  ESTADO GLOBAL
+// ============================================================
+let estadoActual = null;
+let historialChat = [];
+
+// ============================================================
+//  DIAGNÓSTICO
+// ============================================================
+function diagnosticar() {
+  const e1 = document.getElementById('e1').value;
+  const e2 = document.getElementById('e2').value;
+  const e3 = document.getElementById('e3').value;
+  const e4 = document.getElementById('e4').value;
+  const e5 = document.getElementById('e5').value;
+
+  const alerta = document.getElementById('alerta-error');
+  if (!e1||!e2||!e3||!e4||!e5) {
+    alerta.style.display = 'block';
+    return;
+  }
+  alerta.style.display = 'none';
+
+  // Leer priors y normalizar
+  let p = [
+    parseFloat(document.getElementById('p1').value)||0.45,
+    parseFloat(document.getElementById('p2').value)||0.25,
+    parseFloat(document.getElementById('p3').value)||0.20,
+    parseFloat(document.getElementById('p4').value)||0.10
+  ];
+  const sumP = p.reduce((a,b)=>a+b,0);
+  p = p.map(x=>x/sumP);
+
+  // Calcular numeradores P(Hⱼ) * prod P(Eᵢ|Hⱼ)
+  const nums = p.map((ph,j) => {
+    return ph
+      * VEROSIM.e1[e1][j]
+      * VEROSIM.e2[e2][j]
+      * VEROSIM.e3[e3][j]
+      * VEROSIM.e4[e4][j]
+      * VEROSIM.e5[e5][j];
+  });
+
+  const norm = nums.reduce((a,b)=>a+b,0);
+  const posterior = nums.map(n=>n/norm);
+
+  // Pérdida esperada por decisión
+  const perdidaEsperada = PERDIDA.map(fila =>
+    fila.reduce((acc,lij,j)=>acc+lij*posterior[j],0)
+  );
+
+  const idxOptimo = perdidaEsperada.indexOf(Math.min(...perdidaEsperada));
+
+  // Diagnóstico más probable
+  const idxDx = posterior.indexOf(Math.max(...posterior));
+
+  estadoActual = {
+    posterior, perdidaEsperada, idxOptimo, idxDx,
+    evidencias: {e1,e2,e3,e4,e5},
+    priors: p
+  };
+
+  renderResultados(estadoActual);
+  iniciarChat(estadoActual);
+
+  document.getElementById('resultados').style.display = 'block';
+  document.getElementById('resultados').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ============================================================
+//  RENDER
+// ============================================================
+function fmt(n) {
+  return '$'+Math.round(n).toLocaleString('es-CO');
+}
+
+function renderResultados(st) {
+  // Barras
+  const cont = document.getElementById('barras-enfermedades');
+  cont.innerHTML = '';
+  st.posterior.forEach((p,i)=>{
+    const pct = (p*100).toFixed(1);
+    cont.innerHTML += `
+      <div class="enfermedad-item">
+        <div class="enfermedad-header">
+          <span class="enfermedad-nombre">${ENFERMEDADES[i]}</span>
+          <span class="enfermedad-pct">${pct}%</span>
+        </div>
+        <div class="barra-fondo">
+          <div class="barra-fill" style="width:${pct}%;background:${COLORES_BARRA[i]}"></div>
+        </div>
+      </div>`;
+  });
+
+  // Decisión óptima
+  document.getElementById('decision-nombre').textContent = DECISIONES[st.idxOptimo];
+  document.getElementById('decision-diagnostico').textContent =
+    `Diagnóstico principal: ${ENFERMEDADES[st.idxDx]} (${(st.posterior[st.idxDx]*100).toFixed(1)}%)`;
+
+  const lista = document.getElementById('costos-lista');
+  lista.innerHTML = st.perdidaEsperada.map((pe,i)=>`
+    <li class="${i===st.idxOptimo?'optima':''}">
+      <span>${DECISIONES[i]}</span>
+      <span class="monto">${fmt(pe)}</span>
+    </li>`).join('');
+
+  // Tabla pérdidas
+  const tbody = document.getElementById('tabla-perdidas');
+  tbody.innerHTML = st.perdidaEsperada.map((pe,i)=>`
+    <tr class="${i===st.idxOptimo?'fila-optima':''}">
+      <td>${DECISIONES[i]}</td>
+      <td>${fmt(pe)}</td>
+      <td>${i===st.idxOptimo?'✓ Óptima':''}</td>
+    </tr>`).join('');
+}
+
+// ============================================================
+//  AGENTE IA
+// ============================================================
+async function iniciarChat(st) {
+  const chat = document.getElementById('ia-chat');
+  chat.innerHTML = '';
+  historialChat = [];
+
+  const etiquetasE = {
+    e1: {normal:'hojas normales',amarillo:'hojas amarillas',naranja:'manchas naranjas',oscuro:'manchas oscuras'},
+    e2: {normal:'frutos normales',perforado:'frutos perforados',momificado:'frutos momificados',decolorado:'frutos decolorados'},
+    e3: {aisladas:'plantas aisladas',filas:'por filas',toda:'toda el área'},
+    e4: {baja:'humedad baja',media:'humedad media',alta:'humedad alta'},
+    e5: {hojas:'solo hojas',frutos:'solo frutos',tallos:'hojas y tallos',general:'planta en general'}
+  };
+
+  const resumenEv = `color de hojas: ${etiquetasE.e1[st.evidencias.e1]}, frutos: ${etiquetasE.e2[st.evidencias.e2]}, patrón: ${etiquetasE.e3[st.evidencias.e3]}, humedad: ${etiquetasE.e4[st.evidencias.e4]}, parte afectada: ${etiquetasE.e5[st.evidencias.e5]}`;
+
+  const datosModelo = `Eres un agrónomo experto en cultivos de café colombiano y en teoría bayesiana de la decisión. 
+El sistema de diagnóstico CaféDx acaba de analizar un cultivo con el siguiente resultado:
+
+IMPORTANTE:
+- El diagnóstico principal proviene del modelo matemático implementado por el sistema.
+- Nunca contradigas las probabilidades calculadas.
+- Basa tus recomendaciones en la decisión óptima calculada.
+- No inventes probabilidades, costos ni enfermedades adicionales.
+- Si el usuario pregunta escenarios alternativos, analiza cómo cambiarían los resultados si cambian las evidencias o condiciones ambientales.
+
+EVIDENCIAS OBSERVADAS: ${resumenEv}
+
+PROBABILIDADES POSTERIORES (Teorema de Bayes):
+- Roya del café: ${(st.posterior[0]*100).toFixed(1)}%
+- Antracnosis: ${(st.posterior[1]*100).toFixed(1)}%
+- Broca del café: ${(st.posterior[2]*100).toFixed(1)}%
+- Deficiencia nutricional: ${(st.posterior[3]*100).toFixed(1)}%
+
+PÉRDIDA ESPERADA POR DECISIÓN (en pesos colombianos):
+- Fungicida roya: $${Math.round(st.perdidaEsperada[0]).toLocaleString('es-CO')}
+- Fungicida antracnosis: $${Math.round(st.perdidaEsperada[1]).toLocaleString('es-CO')}
+- Control broca: $${Math.round(st.perdidaEsperada[2]).toLocaleString('es-CO')}
+- Plan fertilización: $${Math.round(st.perdidaEsperada[3]).toLocaleString('es-CO')}
+- Solo monitorear: $${Math.round(st.perdidaEsperada[4]).toLocaleString('es-CO')}
+
+DECISIÓN ÓPTIMA: ${DECISIONES[st.idxOptimo]} (menor pérdida esperada: $${Math.round(st.perdidaEsperada[st.idxOptimo]).toLocaleString('es-CO')})`;
+
+  const promptInicial = `${datosModelo}
+
+Con base en los resultados entregados por el modelo bayesiano y la teoría de decisión:
+
+Genera un análisis técnico inicial del cultivo en EXACTAMENTE 4 puntos:
+
+1. Diagnóstico principal
+2. Interpretación de los datos
+3. Decisión óptima y justificación
+4. Recomendaciónes o escenario de riesgo
+
+Usa lenguaje claro, que pueda ser entendido por el agricultor, sin mucho lenguaje técnico 
+Responde de forma clara, práctica y en español. Máximo 4 oraciones por respuesta, que sea bastante conciso y resumido pero entendible. Explica el razonamiento bayesiano cuando sea relevante. Si el agricultor pregunta cómo tratar, da recomendaciones concretas y realistas.
+
+NO uses introducciones como:
+- "Hola"
+- "El diagnóstico principal"
+
+NO inventes datos fuera del modelo matemático.`;
+
+  // Añadimos el prompt a la historia como usuario pero no lo renderizamos en el UI.
+  historialChat.push({role:'user', content: promptInicial});
+  mostrarPensando();
+
+  try {
+    const API_KEY = 'XXXXXXXXXXXXXXXXXXX'; 
+    const contents = historialChat.map(m=>({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+    
+    const { GoogleGenAI } = await import('@google/genai');
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+    
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: contents
+    });
+    
+    const respuesta = response.text || 'No pude generar una respuesta.';
+    quitarPensando();
+    agregarMensaje('ia', respuesta);
+    historialChat.push({role:'assistant', content: respuesta});
+  } catch(err) {
+    quitarPensando();
+    agregarMensaje('ia', 'Ocurrió un error al generar el análisis inicial. Verifica tu conexión e intenta de nuevo.');
+  }
+}
+
+function agregarMensaje(tipo, texto) {
+  const chat = document.getElementById('ia-chat');
+  const div = document.createElement('div');
+  div.className = `mensaje ${tipo}`;
+  const iniciales = tipo==='ia'?'🌿':'Ud';
+  div.innerHTML = `
+    <div class="avatar ${tipo}">${iniciales}</div>
+    <div class="burbuja ${tipo}">${texto.replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\n/g,'<br>')}</div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function mostrarPensando() {
+  const chat = document.getElementById('ia-chat');
+  const div = document.createElement('div');
+  div.className = 'mensaje ia';
+  div.id = 'pensando';
+  div.innerHTML = `<div class="avatar ia">🌿</div><div class="pensando"><span></span><span></span><span></span></div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function quitarPensando() {
+  const el = document.getElementById('pensando');
+  if(el) el.remove();
+}
+
+function preguntaRapida(texto) {
+  document.getElementById('ia-input').value = texto;
+  enviarMensaje();
+}
+
+async function enviarMensaje() {
+  const input = document.getElementById('ia-input');
+  const btn = document.getElementById('btn-enviar');
+  const texto = input.value.trim();
+  if(!texto || !estadoActual) return;
+
+  input.value = '';
+  btn.disabled = true;
+  agregarMensaje('usuario', texto);
+  historialChat.push({role:'user', content: texto});
+
+  mostrarPensando();
+
+  try {
+    // Ingresa aquí tu API Key generada de Google AI Studio
+    const API_KEY = 'AIzaSyCaerQ8PnX7tGhcA48DIj1hQicXoiW_FHw'; 
+
+    const systemInstructionText = historialChat.find(m=>m.role==='system')?.content || '';
+    
+    // Adaptar los mensajes al formato de Gemini
+    const contents = historialChat
+      .filter(m=>m.role!=='system')
+      .map(m=>({
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: m.content }]
+      }));
+
+    // Importamos dinámicamente el SDK instalado (se resuelve usando el importmap o tu bundler local)
+    const { GoogleGenAI } = await import('@google/genai');
+    const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+    // Llamada usando el SDK oficial de Google Gen AI
+    const config = {};
+    if (systemInstructionText) {
+      config.systemInstruction = systemInstructionText;
+    }
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: contents,
+      ...(Object.keys(config).length > 0 && { config })
+    });
+
+    const respuesta = response.text || 'No pude generar una respuesta.';
+    
+    quitarPensando();
+    agregarMensaje('ia', respuesta);
+    historialChat.push({role:'assistant', content: respuesta});
+  } catch(err) {
+    quitarPensando();
+    agregarMensaje('ia', 'Ocurrió un error al conectar con el agente. Verifica tu conexión e intenta de nuevo.');
+  }
+
+  btn.disabled = false;
+  input.focus();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CaféDx — Configuración del modelo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,300&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="stylesConf.css">
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="header-icon">⚙️</div>
+    <div class="header-text">
+      <h1>Configuración del modelo</h1>
+      <p>CaféDx — ajusta probabilidades, verosimilitudes, costos y función de pérdida</p>
+    </div>
+  </div>
+  <a href="index.html" class="btn-volver">← Volver al diagnóstico</a>
+</header>
+
+<!-- TABS NAV -->
+<div class="tabs-nav">
+  <button class="tab-btn activo" onclick="cambiarTab('priors',this)">Probabilidades previas</button>
+  <button class="tab-btn" onclick="cambiarTab('verosim',this)">Verosimilitudes</button>
+  <button class="tab-btn" onclick="cambiarTab('costos',this)">Costos de decisión</button>
+  <button class="tab-btn" onclick="cambiarTab('perdida',this)">Función de pérdida</button>
+</div>
+
+<div class="contenedor">
+
+  <!-- ========== TAB 1: PROBABILIDADES PREVIAS ========== -->
+  <div id="tab-priors" class="panel-tab activo">
+    <div class="seccion">
+      <div class="seccion-header">
+        <h2>Probabilidades previas P(Hᵢ)</h2>
+        <p>Representan qué tan frecuente es cada enfermedad en tu zona antes de observar ningún síntoma. Puedes ajustarlas según el historial de tu lote o datos regionales. La suma debe ser exactamente 1.00.</p>
+      </div>
+      <div class="priors-grid" id="priors-grid"></div>
+      <div class="suma-priors">
+        Suma total: <span class="suma-valor" id="suma-priors-val">1.00</span>
+        <span id="suma-priors-ico">✓</span>
+      </div>
+    </div>
+    <div class="acciones">
+      <button class="btn-guardar" onclick="guardar('priors')">Guardar probabilidades previas</button>
+      <button class="btn-restaurar" onclick="restaurar('priors')">Restaurar valores por defecto</button>
+      <span class="toast" id="toast-priors"></span>
+    </div>
+  </div>
+
+  <!-- ========== TAB 2: VEROSIMILITUDES ========== -->
+  <div id="tab-verosim" class="panel-tab">
+    <div class="seccion">
+      <div class="seccion-header">
+        <h2>Verosimilitudes P(Eᵢ | Hⱼ)</h2>
+        <p>Para cada evidencia, indica cuán probable es observar ese valor dado que la planta padece cada enfermedad. Los valores de cada fila (por opción de evidencia) deben sumar 1.00 entre las cuatro enfermedades.</p>
+      </div>
+      <div class="nota-formula">
+        <strong>Cómo leer la tabla:</strong> cada fila es una opción observable (ej: "hojas amarillas"). Las 4 columnas son las enfermedades. El valor indica P(ver ese síntoma | esa enfermedad). Si hojas amarillas tiene 0.70 en "Def. nutricional", significa que el 70% de los casos de deficiencia nutricional muestran hojas amarillas.
+      </div>
+      <div class="ev-tabs" id="ev-tabs"></div>
+      <div id="ev-panels"></div>
+    </div>
+    <div class="acciones">
+      <button class="btn-guardar" onclick="guardar('verosim')">Guardar verosimilitudes</button>
+      <button class="btn-restaurar" onclick="restaurar('verosim')">Restaurar valores por defecto</button>
+      <span class="toast" id="toast-verosim"></span>
+    </div>
+  </div>
+
+  <!-- ========== TAB 3: COSTOS ========== -->
+  <div id="tab-costos" class="panel-tab">
+    <div class="seccion">
+      <div class="seccion-header">
+        <h2>Costos base de cada decisión (COP / hectárea)</h2>
+        <p>Costo directo de aplicar cada tratamiento cuando se hace correctamente. Se usa como referencia en la función de pérdida.</p>
+      </div>
+      <div class="decision-config" id="costos-config"></div>
+    </div>
+    <div class="acciones">
+      <button class="btn-guardar" onclick="guardar('costos')">Guardar costos</button>
+      <button class="btn-restaurar" onclick="restaurar('costos')">Restaurar valores por defecto</button>
+      <span class="toast" id="toast-costos"></span>
+    </div>
+  </div>
+
+  <!-- ========== TAB 4: FUNCIÓN DE PÉRDIDA ========== -->
+  <div id="tab-perdida" class="panel-tab">
+    <div class="seccion">
+      <div class="seccion-header">
+        <h2>Función de pérdida L(Dᵢ, Hⱼ)</h2>
+        <p>Pérdida total (en COP) si se toma la decisión Dᵢ pero la enfermedad real es Hⱼ. Incluye el costo del tratamiento aplicado más el daño económico por no tratar la enfermedad correcta a tiempo.</p>
+      </div>
+      <div class="nota-formula">
+        <strong>Lógica:</strong> si aciertas (decisión = enfermedad real), la pérdida es solo el costo del tratamiento. Si te equivocas, se suman el costo del tratamiento inútil más la pérdida por propagación de la enfermedad no tratada. Los valores de la diagonal suelen ser los más bajos de su columna.
+      </div>
+      <div class="perdida-wrap">
+        <table class="perdida-table" id="perdida-table"></table>
+      </div>
+    </div>
+    <div class="acciones">
+      <button class="btn-guardar" onclick="guardar('perdida')">Guardar función de pérdida</button>
+      <button class="btn-restaurar" onclick="restaurar('perdida')">Restaurar valores por defecto</button>
+      <span class="toast" id="toast-perdida"></span>
+    </div>
+  </div>
+
+</div><!-- /contenedor -->
+
+<script>
+// ============================================================
+//  DATOS POR DEFECTO
+// ============================================================
+const ENFERMEDADES = ['Roya','Antracnosis','Broca','Def. nutricional'];
+const COLORES = ['#2d6a4f','#52b788','#7b4f2e','#c9956c'];
+
+const DECISIONES = [
+  'Fungicida (roya)',
+  'Fungicida (antracnosis)',
+  'Control de broca',
+  'Plan de fertilización',
+  'Solo monitorear'
+];
+
+const EVIDENCIAS_META = [
+  { key:'e1', label:'E1 — Color de hojas', opciones:['Normal','Amarillo','Manchas naranjas','Manchas oscuras'] },
+  { key:'e2', label:'E2 — Estado de frutos', opciones:['Normal','Con perforaciones','Momificado','Decolorado'] },
+  { key:'e3', label:'E3 — Patrón afectación', opciones:['Plantas aisladas','Por filas','Toda el área'] },
+  { key:'e4', label:'E4 — Humedad reciente', opciones:['Baja','Media','Alta'] },
+  { key:'e5', label:'E5 — Parte afectada', opciones:['Solo hojas','Solo frutos','Hojas y tallos','General'] }
+];
+
+const DEFAULTS = {
+  priors: [0.45, 0.25, 0.20, 0.10],
+  verosim: {
+    e1: [[0.05,0.10,0.50,0.10],[0.20,0.15,0.30,0.70],[0.65,0.10,0.10,0.10],[0.10,0.65,0.10,0.10]],
+    e2: [[0.30,0.10,0.05,0.60],[0.05,0.05,0.85,0.05],[0.10,0.70,0.05,0.10],[0.55,0.15,0.05,0.25]],
+    e3: [[0.10,0.30,0.20,0.50],[0.30,0.40,0.50,0.30],[0.60,0.30,0.30,0.20]],
+    e4: [[0.10,0.15,0.35,0.40],[0.25,0.35,0.40,0.40],[0.65,0.50,0.25,0.20]],
+    e5: [[0.60,0.10,0.05,0.20],[0.10,0.55,0.80,0.10],[0.20,0.15,0.05,0.10],[0.10,0.20,0.10,0.60]]
+  },
+  costos: [180000, 150000, 200000, 220000, 20000],
+  perdida: [
+    [180000, 780000, 880000, 680000],
+    [750000, 150000, 850000, 650000],
+    [820000, 770000, 200000, 720000],
+    [720000, 670000, 770000, 220000],
+    [900000, 800000, 850000, 400000]
+  ]
+};
+
+// Cargar del localStorage si existe, si no usar defaults
+function cargarEstado(clave) {
+  try {
+    const raw = localStorage.getItem('cafedx_'+clave);
+    return raw ? JSON.parse(raw) : JSON.parse(JSON.stringify(DEFAULTS[clave]));
+  } catch { return JSON.parse(JSON.stringify(DEFAULTS[clave])); }
+}
+function guardarEstado(clave, val) {
+  localStorage.setItem('cafedx_'+clave, JSON.stringify(val));
+}
+
+// ============================================================
+//  TABS
+// ============================================================
+function cambiarTab(nombre, btn) {
+  document.querySelectorAll('.panel-tab').forEach(p=>p.classList.remove('activo'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('activo'));
+  document.getElementById('tab-'+nombre).classList.add('activo');
+  btn.classList.add('activo');
+}
+
+// ============================================================
+//  TAB 1 — PRIORS
+// ============================================================
+function renderPriors() {
+  const vals = cargarEstado('priors');
+  const grid = document.getElementById('priors-grid');
+  grid.innerHTML = '';
+  vals.forEach((v,i)=>{
+    const div = document.createElement('div');
+    div.className = 'prior-row';
+    div.innerHTML = `
+      <div class="prior-color" style="background:${COLORES[i]}"></div>
+      <span class="prior-label">${ENFERMEDADES[i]}</span>
+      <div class="prior-input-wrap">
+        <input type="number" id="prior-${i}" value="${v}" min="0.001" max="0.999" step="0.01" oninput="actualizarSumaPriors()">
+        <span class="prior-pct" id="prior-pct-${i}">${(v*100).toFixed(1)}%</span>
+      </div>`;
+    grid.appendChild(div);
+  });
+  actualizarSumaPriors();
+}
+
+function actualizarSumaPriors() {
+  let suma = 0;
+  for(let i=0;i<4;i++){
+    const v = parseFloat(document.getElementById('prior-'+i)?.value)||0;
+    suma += v;
+    const pctEl = document.getElementById('prior-pct-'+i);
+    if(pctEl) pctEl.textContent = (v*100).toFixed(1)+'%';
+  }
+  const valEl = document.getElementById('suma-priors-val');
+  const icoEl = document.getElementById('suma-priors-ico');
+  if(valEl) valEl.textContent = suma.toFixed(3);
+  const ok = Math.abs(suma-1)<0.005;
+  if(valEl){ valEl.className = 'suma-valor '+(ok?'suma-ok':'suma-mal'); }
+  if(icoEl){ icoEl.textContent = ok?'✓':'✗'; icoEl.className = ok?'suma-ok':'suma-mal'; }
+}
+
+// ============================================================
+//  TAB 2 — VEROSIMILITUDES
+// ============================================================
+function renderVerosim() {
+  const vals = cargarEstado('verosim');
+  const tabsEl = document.getElementById('ev-tabs');
+  const panelsEl = document.getElementById('ev-panels');
+  tabsEl.innerHTML = ''; panelsEl.innerHTML = '';
+
+  EVIDENCIAS_META.forEach((ev,ei)=>{
+    // Tab
+    const tab = document.createElement('button');
+    tab.className = 'ev-tab'+(ei===0?' activo':'');
+    tab.textContent = ev.label;
+    tab.onclick = ()=>{
+      document.querySelectorAll('.ev-tab').forEach(t=>t.classList.remove('activo'));
+      document.querySelectorAll('.ev-panel').forEach(p=>p.classList.remove('activo'));
+      tab.classList.add('activo');
+      document.getElementById('ev-panel-'+ei).classList.add('activo');
+    };
+    tabsEl.appendChild(tab);
+
+    // Panel
+    const panel = document.createElement('div');
+    panel.className = 'ev-panel'+(ei===0?' activo':'');
+    panel.id = 'ev-panel-'+ei;
+
+    let html = `<table class="verosim-table">
+      <thead><tr><th>Opción observada</th>${ENFERMEDADES.map(e=>`<th>${e}</th>`).join('')}<th>Suma</th></tr></thead>
+      <tbody>`;
+
+    const filasEv = vals[ev.key];
+    ev.opciones.forEach((op,oi)=>{
+      html += `<tr>
+        <td>${op}</td>
+        ${ENFERMEDADES.map((_,hi)=>`<td><input type="number" id="v-${ev.key}-${oi}-${hi}" value="${filasEv[oi][hi]}" min="0" max="1" step="0.01" oninput="actualizarSumaVerosim('${ev.key}',${oi},${ev.opciones.length})"></td>`).join('')}
+        <td class="suma-fila" id="sf-${ev.key}-${oi}"></td>
+      </tr>`;
+    });
+
+    html += `</tbody></table>`;
+    panel.innerHTML = html;
+    panelsEl.appendChild(panel);
+
+    // calcular sumas iniciales
+    ev.opciones.forEach((_,oi)=>actualizarSumaVerosim(ev.key,oi,ev.opciones.length));
+  });
+}
+
+function actualizarSumaVerosim(evKey, oi) {
+  let suma = 0;
+  for(let hi=0;hi<4;hi++){
+    suma += parseFloat(document.getElementById(`v-${evKey}-${oi}-${hi}`)?.value)||0;
+  }
+  const el = document.getElementById(`sf-${evKey}-${oi}`);
+  if(el){
+    const ok = Math.abs(suma-1)<0.005;
+    el.textContent = suma.toFixed(2);
+    el.className = 'suma-fila '+(ok?'ok':'mal');
+  }
+}
+
+// ============================================================
+//  TAB 3 — COSTOS
+// ============================================================
+function renderCostos() {
+  const vals = cargarEstado('costos');
+  const cont = document.getElementById('costos-config');
+  cont.innerHTML = '';
+  DECISIONES.forEach((d,i)=>{
+    const div = document.createElement('div');
+    div.className = 'decision-row';
+    div.innerHTML = `
+      <label>${d}</label>
+      <div class="costo-wrap">
+        <span>COP $</span>
+        <input type="number" id="costo-${i}" value="${vals[i]}" min="0" step="1000">
+        <span>/ ha</span>
+      </div>`;
+    cont.appendChild(div);
+  });
+}
+
+// ============================================================
+//  TAB 4 — FUNCIÓN DE PÉRDIDA
+// ============================================================
+function renderPerdida() {
+  const vals = cargarEstado('perdida');
+  const tabla = document.getElementById('perdida-table');
+  let html = `<thead><tr><th>Decisión Dᵢ \ Enfermedad Hⱼ</th>${ENFERMEDADES.map(e=>`<th>${e}</th>`).join('')}</tr></thead><tbody>`;
+  DECISIONES.forEach((d,di)=>{
+    html += `<tr><td>${d}</td>${ENFERMEDADES.map((_,hi)=>`<td><input type="number" id="pd-${di}-${hi}" value="${vals[di][hi]}" min="0" step="1000"></td>`).join('')}</tr>`;
+  });
+  html += '</tbody>';
+  tabla.innerHTML = html;
+}
+
+// ============================================================
+//  GUARDAR / RESTAURAR
+// ============================================================
+function guardar(clave) {
+  let val, err = false;
+
+  if(clave==='priors'){
+    val = [];
+    let suma = 0;
+    for(let i=0;i<4;i++){
+      const v = parseFloat(document.getElementById('prior-'+i)?.value)||0;
+      val.push(v); suma+=v;
+    }
+    if(Math.abs(suma-1)>0.01){ mostrarToast('priors','Las probabilidades deben sumar 1.00','error'); return; }
+  }
+
+  if(clave==='verosim'){
+    val = {};
+    let errores = [];
+    EVIDENCIAS_META.forEach(ev=>{
+      val[ev.key] = [];
+      ev.opciones.forEach((_,oi)=>{
+        const fila = [];
+        let suma = 0;
+        for(let hi=0;hi<4;hi++){
+          const v = parseFloat(document.getElementById(`v-${ev.key}-${oi}-${hi}`)?.value)||0;
+          fila.push(v); suma+=v;
+        }
+        if(Math.abs(suma-1)>0.01) errores.push(`${ev.label} fila ${oi+1}`);
+        val[ev.key].push(fila);
+      });
+    });
+    if(errores.length>0){ mostrarToast('verosim','Filas con suma ≠ 1: '+errores.join(', '),'error'); return; }
+  }
+
+  if(clave==='costos'){
+    val = DECISIONES.map((_,i)=>parseFloat(document.getElementById('costo-'+i)?.value)||0);
+  }
+
+  if(clave==='perdida'){
+    val = DECISIONES.map((_,di)=>ENFERMEDADES.map((_,hi)=>parseFloat(document.getElementById(`pd-${di}-${hi}`)?.value)||0));
+  }
+
+  guardarEstado(clave, val);
+  mostrarToast(clave,'Guardado correctamente ✓','ok');
+}
+
+function restaurar(clave) {
+  guardarEstado(clave, JSON.parse(JSON.stringify(DEFAULTS[clave])));
+  if(clave==='priors') renderPriors();
+  if(clave==='verosim') renderVerosim();
+  if(clave==='costos') renderCostos();
+  if(clave==='perdida') renderPerdida();
+  mostrarToast(clave,'Valores restaurados a los predeterminados','ok');
+}
+
+function mostrarToast(clave, msg, tipo) {
+  const el = document.getElementById('toast-'+clave);
+  if(!el) return;
+  el.textContent = msg;
+  el.className = 'toast '+tipo+' visible';
+  setTimeout(()=>el.classList.remove('visible'), 3000);
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+renderPriors();
+renderVerosim();
+renderCostos();
+renderPerdida();
+</script>
+</body>
+</html>
